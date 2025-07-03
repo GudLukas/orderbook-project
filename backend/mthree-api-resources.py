@@ -2,11 +2,6 @@ from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-@app.route("/")
-def index():
-    return "<h1>Hello, Orderbook!</h1>" \
-    "<p>Welcome to the Orderbook application.</p>"
-
 users_database = {
     1: "Alice",
     2: "Rachel",
@@ -24,7 +19,7 @@ def get_username(id):
 def get_users():
     return users_database
 
-@app.route('/describe')
+@app.route('/')
 def get_description():
     return """
     <h1>
@@ -36,7 +31,7 @@ def get_description():
         <p>The four request methods we will use are GET, POST, PUT, and DELETE. GET requests can be used in a browser. The other methods can be used via CURL or another API platform, such as Postman or Thunder Client in VS Code.
     <p>
     <ul>
-        <li><a href='http://127.0.0.1:5000/describe'>GET This Page</a></li>
+        <li><a href='http://127.0.0.1:5000/'>GET This Page</a></li>
         <li><a href='http://127.0.0.1:5000/username/1'>GET a username from ID</a></li>
         <li><a href='http://127.0.0.1:5000/users/'>GET all user info</a></li>
     </ul>
