@@ -44,7 +44,6 @@ cd backend
 python api.py
 ```
 
-You can interact with the API using tools like Postman.  
-Example endpoints:
-- `POST /orders` to add a new order
-- `GET /orders` to list all orders
+You can interact with the API using tools like Postman.
+
+To check all existing endpoints, visit `/instructions` which returns a formatted table of all available endpoints and their HTTP methods.
