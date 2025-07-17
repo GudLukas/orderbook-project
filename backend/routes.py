@@ -1,11 +1,10 @@
-from flask import Flask, Response, jsonify, request
+from flask import Blueprint, Flask, Response, jsonify, request
 from db_connect import get_connection
 
 
-app = Flask(__name__)
+bp = Blueprint('bp', __name__)
 
-
-@app.route('/orders', methods=['GET'])
+@bp.route('/orders', methods=['GET'])
 def get_orders():
     db = get_connection()
     cursor = db.cursor()
@@ -24,7 +23,7 @@ def get_orders():
     } for order in orders])
     
     
-@app.route('/orders', methods=['POST'])
+@bp.route('/orders', methods=['POST'])
 def create_order():
     db = get_connection()
     cursor = db.cursor()
@@ -35,7 +34,3 @@ def create_order():
     db.close()
     return Response(status=201)
     
-    
-
-if __name__ == '__main__':
-    app.run(debug=True)
