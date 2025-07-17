@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:5000/api'; 
+const API_BASE_URL = 'http://localhost:5000'; 
 
 const api = axios.create({
     baseURL: API_BASE_URL,
@@ -31,7 +31,7 @@ api.interceptors.response.use(
 
 export const fetchOrderBook = async () => {
     try {
-        const response = await api.get("/orderbook");
+        const response = await api.get("/orders");
         return response.data;
     } catch (error) {
         console.error('Error fetching order book:', error);
@@ -41,7 +41,7 @@ export const fetchOrderBook = async () => {
 
 export const placeOrder = async (order) => {
     try {
-        const response = await api.post("/order", order);
+        const response = await api.post("/orders", order); 
         return response.data;
     } catch (error) {
         console.error('Error placing order:', error);
@@ -51,7 +51,7 @@ export const placeOrder = async (order) => {
 
 export const cancelOrder = async (orderId) => {
     try {
-        const response = await api.delete(`/order/${orderId}`);
+        const response = await api.delete(`/orders/${orderId}`);
         return response.data;
     } catch (error) {
         console.error('Error canceling order:', error);
@@ -59,7 +59,18 @@ export const cancelOrder = async (orderId) => {
     }
 }
 
+export const updateOrder = async (orderId, order) => {
+    try {
+        const response = await api.put(`/orders/${orderId}`, order);
+        return response.data;
+    } catch (error) {
+        console.error('Error updating order:', error);
+        throw error;
+    }
+}
+
 // Get all orders for a user
+// not implemented on the backend yet
 export const getUserOrders = async () => {
     try {
         const response = await api.get('/orders');
@@ -71,6 +82,7 @@ export const getUserOrders = async () => {
 }
 
 // Get market data/prices
+// not implemented on the backend yet
 export const getMarketData = async () => {
     try {
         const response = await api.get('/market');
