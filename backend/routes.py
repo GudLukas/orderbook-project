@@ -10,18 +10,12 @@ bp = Blueprint('bp', __name__)
 def get_orders():
     try:
         with get_db_connection() as db:
-            cursor = db.cursor()
+            cursor = db.cursor(dictionary=True)
             cursor.execute("SELECT * FROM orders")
             orders = cursor.fetchall()
             cursor.close()
 
-            return jsonify([{
-                'id': order[0],
-                'symbol': order[1],
-                'side': order[2],
-                'price': order[3],
-                'quantity': order[4]
-            } for order in orders])
+            return jsonify(orders)
         
     except mysql.connector.Error as err:
         logging.error(f"Error fetching orders: {err}")
@@ -62,20 +56,14 @@ def delete_order(order_id):
 def get_order(order_id):
     try:
         with get_db_connection() as db:
-            cursor = db.cursor()
+            cursor = db.cursor(dictionary=True)
             sql = "SELECT * FROM orders WHERE id = %s"
             cursor.execute(sql, (order_id,))
             order = cursor.fetchone()
             cursor.close()
 
         if order:
-            return jsonify({
-                'id': order[0],
-                'symbol': order[1],
-                'side': order[2],
-                'price': order[3],
-                'quantity': order[4]
-            })
+            return jsonify(order)
         else:
             return Response(status=404)
     except mysql.connector.Error as err:
