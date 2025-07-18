@@ -69,6 +69,16 @@ export const updateOrder = async (orderId, order) => {
     }
 }
 
+export const getOrderById = async (orderId) => {
+    try {
+        const response = await api.get(`/orders/${orderId}`);
+        return response.data;
+    } catch (error) {
+        console.error('Error fetching order by ID:', error);
+        throw error;
+    }
+}
+
 // Get all orders for a user
 // not implemented on the backend yet
 export const getUserOrders = async () => {
