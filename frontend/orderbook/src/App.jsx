@@ -1,5 +1,6 @@
 import './App.css'
 import ApiTest from './components/ApiTest.jsx'
+import OrderBookGrid from './components/OrderBookGrid';
 
 function App() {
   return (
@@ -13,14 +14,10 @@ function App() {
         <div className="welcome-card">
           <h2>Welcome to the Trading Floor</h2>
           <p>Monitor and manage your orders in real-time</p>
-
-          <div className="api-test">
-            <ApiTest />
-          </div>
-
         </div>
       </main>
 
+      <OrderBookGrid />
 
     </div>
 
