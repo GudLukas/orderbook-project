@@ -7,7 +7,7 @@ import logging
 
 pool_config = {
     'user': 'root',
-    'password': 'rootroot',
+    'password': 'root',
     'host': 'localhost',
     'database': 'orderbook_db',
     'pool_name': 'orderbook_pool',
