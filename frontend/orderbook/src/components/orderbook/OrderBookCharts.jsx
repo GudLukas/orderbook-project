@@ -1,13 +1,34 @@
-import React, { useMemo } from 'react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import React, { useMemo } from "react";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+} from "recharts";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const OrderBookCharts = ({ groupedBids, groupedAsks, spread }) => {
   // Prepare data for depth chart (cumulative volume)
   const depthChartData = useMemo(() => {
     // Handle case where groupedBids/groupedAsks might be empty or undefined
-    if (!groupedBids || !groupedAsks || Object.keys(groupedBids).length === 0 && Object.keys(groupedAsks).length === 0) {
+    if (
+      !groupedBids ||
+      !groupedAsks ||
+      (Object.keys(groupedBids).length === 0 &&
+        Object.keys(groupedAsks).length === 0)
+    ) {
       return [];
     }
 
@@ -16,8 +37,14 @@ const OrderBookCharts = ({ groupedBids, groupedAsks, spread }) => {
       .reduce((acc, [price, orders], index) => {
         // Ensure orders is an array
         const ordersArray = Array.isArray(orders) ? orders : [];
-        const volume = ordersArray.reduce((sum, order) => sum + parseFloat(order.quantity || 0), 0);
-        const cumulativeVolume = index === 0 ? volume : volume + (acc[index - 1]?.cumulativeBidVolume || 0);
+        const volume = ordersArray.reduce(
+          (sum, order) => sum + parseFloat(order.quantity || 0),
+          0
+        );
+        const cumulativeVolume =
+          index === 0
+            ? volume
+            : volume + (acc[index - 1]?.cumulativeBidVolume || 0);
         acc.push({
           price: parseFloat(price),
           bidVolume: volume,
@@ -31,8 +58,14 @@ const OrderBookCharts = ({ groupedBids, groupedAsks, spread }) => {
       .reduce((acc, [price, orders], index) => {
         // Ensure orders is an array
         const ordersArray = Array.isArray(orders) ? orders : [];
-        const volume = ordersArray.reduce((sum, order) => sum + parseFloat(order.quantity || 0), 0);
-        const cumulativeVolume = index === 0 ? volume : volume + (acc[index - 1]?.cumulativeAskVolume || 0);
+        const volume = ordersArray.reduce(
+          (sum, order) => sum + parseFloat(order.quantity || 0),
+          0
+        );
+        const cumulativeVolume =
+          index === 0
+            ? volume
+            : volume + (acc[index - 1]?.cumulativeAskVolume || 0);
         acc.push({
           price: parseFloat(price),
           askVolume: volume,
@@ -42,9 +75,11 @@ const OrderBookCharts = ({ groupedBids, groupedAsks, spread }) => {
       }, []);
 
     // Combine and sort by price
-    const combined = [...bidsData, ...asksData].sort((a, b) => a.price - b.price);
-    
-    return combined.map(item => ({
+    const combined = [...bidsData, ...asksData].sort(
+      (a, b) => a.price - b.price
+    );
+
+    return combined.map((item) => ({
       price: item.price,
       bidDepth: item.cumulativeBidVolume || 0,
       askDepth: item.cumulativeAskVolume || 0,
@@ -58,25 +93,35 @@ const OrderBookCharts = ({ groupedBids, groupedAsks, spread }) => {
       return [];
     }
 
-    const bidsData = Object.entries(groupedBids || {}).map(([price, orders]) => {
-      const ordersArray = Array.isArray(orders) ? orders : [];
-      return {
-        price: parseFloat(price),
-        bidVolume: ordersArray.reduce((sum, order) => sum + parseFloat(order.quantity || 0), 0),
-        askVolume: 0,
-        type: 'bid'
-      };
-    });
+    const bidsData = Object.entries(groupedBids || {}).map(
+      ([price, orders]) => {
+        const ordersArray = Array.isArray(orders) ? orders : [];
+        return {
+          price: parseFloat(price),
+          bidVolume: ordersArray.reduce(
+            (sum, order) => sum + parseFloat(order.quantity || 0),
+            0
+          ),
+          askVolume: 0,
+          type: "bid",
+        };
+      }
+    );
 
-    const asksData = Object.entries(groupedAsks || {}).map(([price, orders]) => {
-      const ordersArray = Array.isArray(orders) ? orders : [];
-      return {
-        price: parseFloat(price),
-        bidVolume: 0,
-        askVolume: ordersArray.reduce((sum, order) => sum + parseFloat(order.quantity || 0), 0),
-        type: 'ask'
-      };
-    });
+    const asksData = Object.entries(groupedAsks || {}).map(
+      ([price, orders]) => {
+        const ordersArray = Array.isArray(orders) ? orders : [];
+        return {
+          price: parseFloat(price),
+          bidVolume: 0,
+          askVolume: ordersArray.reduce(
+            (sum, order) => sum + parseFloat(order.quantity || 0),
+            0
+          ),
+          type: "ask",
+        };
+      }
+    );
 
     return [...bidsData, ...asksData].sort((a, b) => a.price - b.price);
   }, [groupedBids, groupedAsks]);
@@ -98,9 +143,9 @@ const OrderBookCharts = ({ groupedBids, groupedAsks, spread }) => {
   };
 
   // Debug logging to see the data structure
-  console.log('GroupedBids:', groupedBids);
-  console.log('GroupedAsks:', groupedAsks);
-  console.log('DepthChartData:', depthChartData);
+  console.log("GroupedBids:", groupedBids);
+  console.log("GroupedAsks:", groupedAsks);
+  console.log("DepthChartData:", depthChartData);
 
   if (!depthChartData.length) {
     return (
@@ -111,10 +156,9 @@ const OrderBookCharts = ({ groupedBids, groupedAsks, spread }) => {
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center h-64 text-gray-500">
-            {!groupedBids && !groupedAsks ? 
-              'Loading chart data...' : 
-              'No order data to display'
-            }
+            {!groupedBids && !groupedAsks
+              ? "Loading chart data..."
+              : "No order data to display"}
           </div>
         </CardContent>
       </Card>
@@ -142,20 +186,20 @@ const OrderBookCharts = ({ groupedBids, groupedAsks, spread }) => {
             <TabsTrigger value="depth">Market Depth</TabsTrigger>
             <TabsTrigger value="volume">Volume Distribution</TabsTrigger>
           </TabsList>
-          
+
           <TabsContent value="depth" className="mt-6">
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={depthChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis 
-                    dataKey="price" 
-                    domain={['dataMin', 'dataMax']}
+                  <XAxis
+                    dataKey="price"
+                    domain={["dataMin", "dataMax"]}
                     type="number"
                     tick={{ fontSize: 12 }}
                     tickFormatter={(value) => `$${value.toFixed(1)}`}
                   />
-                  <YAxis 
+                  <YAxis
                     tick={{ fontSize: 12 }}
                     tickFormatter={(value) => value.toFixed(0)}
                   />
@@ -194,18 +238,18 @@ const OrderBookCharts = ({ groupedBids, groupedAsks, spread }) => {
               </div>
             </div>
           </TabsContent>
-          
+
           <TabsContent value="volume" className="mt-6">
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={volumeDistributionData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis 
-                    dataKey="price" 
+                  <XAxis
+                    dataKey="price"
                     tick={{ fontSize: 12 }}
                     tickFormatter={(value) => `$${value.toFixed(1)}`}
                   />
-                  <YAxis 
+                  <YAxis
                     tick={{ fontSize: 12 }}
                     tickFormatter={(value) => value.toFixed(0)}
                   />
