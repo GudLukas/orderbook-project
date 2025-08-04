@@ -4,10 +4,11 @@
 import mysql.connector.pooling
 from contextlib import contextmanager
 import logging
+import os
 
 pool_config = {
-    'user': 'root',
-    'password': 'rootroot',
+    'user': os.getenv('DB_USER'),
+    'password': os.getenv('DB_PASSWORD'),
     'host': 'localhost',
     'database': 'orderbook_db',
     'pool_name': 'orderbook_pool',
