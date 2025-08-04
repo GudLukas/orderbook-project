@@ -86,12 +86,14 @@ def update_order(order_id):
             sql = "UPDATE orders SET symbol = %s, side = %s, price = %s, quantity = %s WHERE id = %s"
             cursor.execute(sql, (request.json['symbol'], request.json['side'], request.json['price'], request.json['quantity'], order_id))
             db.commit()
-            cursor.close()
     
             if cursor.rowcount > 0:
+                cursor.close()
                 return Response(status=200)
             else:
+                cursor.close()
                 return Response(status=404)
+            
     except mysql.connector.Error as err:
         logging.error(f"Error updating order: {err}")
         return Response(status=500)
