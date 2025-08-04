@@ -17,6 +17,7 @@ mysql-connector-python==9.3.0
 packaging==25.0
 pluggy==1.6.0
 pycparser==2.22
+python-dotenv==1.1.1
 Pygments==2.19.2
 PyJWT==2.10.1
 pytest==8.4.1
