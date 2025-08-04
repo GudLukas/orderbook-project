@@ -1,0 +1,19 @@
+node_modules
+.vite
+dependencies
+# Local env files
+.env.local
+.env.*.local
+.env
+# Log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+pnpm-error.log*
+# Production
+dist
+# Miscellaneous
+.DS_Store
+Thumbs.db
+
