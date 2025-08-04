@@ -5,12 +5,22 @@ import mysql.connector.pooling
 from contextlib import contextmanager
 import logging
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Debug: Print loaded environment variables
+print(f"DB_USER: '{os.getenv('DB_USER')}'")
+print(f"DB_PASSWORD: '{os.getenv('DB_PASSWORD')}'")
+print(f"DB_HOST: '{os.getenv('DB_HOST')}'")
+print(f"DB_NAME: '{os.getenv('DB_NAME')}'")
 
 pool_config = {
     'user': os.getenv('DB_USER'),
     'password': os.getenv('DB_PASSWORD'),
-    'host': 'localhost',
-    'database': 'orderbook_db',
+    'host': os.getenv('DB_HOST', 'localhost'),
+    'database': os.getenv('DB_NAME', 'orderbook_db'),
     'pool_name': 'orderbook_pool',
     'pool_size': 10, # number of connections in the pool - depends on the needs, can be adjusted for scalability
     'pool_reset_session': True,
