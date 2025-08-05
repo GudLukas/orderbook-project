@@ -1,4 +1,5 @@
 
+import { formatQuantity } from '../../utils/formatters';
 
 const OrderDetails = ({ order, isVisible, onClose }) => {
   if (!isVisible || !order) return null;
@@ -22,8 +23,8 @@ const OrderDetails = ({ order, isVisible, onClose }) => {
   };
 
   const getSideColor = (side) => {
-    return side?.toLowerCase() === 'buy' 
-      ? 'text-green-600 bg-green-100' 
+    return side?.toLowerCase() === 'buy'
+      ? 'text-green-600 bg-green-100'
       : 'text-red-600 bg-red-100';
   };
 
@@ -79,7 +80,7 @@ const OrderDetails = ({ order, isVisible, onClose }) => {
           <div className="flex justify-between items-center">
             <span className="text-sm text-gray-600">Quantity:</span>
             <span className="font-semibold">
-              {parseFloat(order.quantity).toLocaleString()} shares
+              {formatQuantity(order.quantity)} shares
             </span>
           </div>
 
@@ -109,7 +110,7 @@ const OrderDetails = ({ order, isVisible, onClose }) => {
                 {formatDate(order.created_at)}
               </span>
             </div>
-            
+
             {order.updated_at && (
               <div className="flex justify-between items-center">
                 <span className="text-xs text-gray-500">Updated:</span>
@@ -129,7 +130,7 @@ const OrderDetails = ({ order, isVisible, onClose }) => {
           >
             Close
           </button>
-          
+
           {/* Action buttons based on status */}
           {order.status === 'PENDING' && (
             <button

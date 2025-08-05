@@ -10,7 +10,7 @@ export const groupOrdersByPrice = (ordersList) => {
         orders: []
       };
     }
-    grouped[price].totalQuantity += parseInt(order.quantity);
+    grouped[price].totalQuantity += parseFloat(order.quantity);
     grouped[price].orders.push(order);
   });
   return Object.values(grouped);

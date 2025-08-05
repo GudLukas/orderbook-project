@@ -1,13 +1,13 @@
 import PriceLevel from './PriceLevel';
 
-const OrderSide = ({ 
-  type, 
-  title, 
-  orders, 
-  count, 
-  priceColor, 
-  headerBg, 
-  headerText 
+const OrderSide = ({
+  type,
+  title,
+  orders,
+  count,
+  priceColor,
+  headerBg,
+  headerText
 }) => {
   const emptyMessage = type === 'bids' ? 'No buy orders available' : 'No sell orders available';
 
@@ -20,7 +20,7 @@ const OrderSide = ({
           {count}
         </div>
       </div>
-      
+
       {/* Table Header */}
       <div className="grid grid-cols-4 gap-2 px-4 py-2 bg-gray-100 text-xs font-semibold text-gray-600 uppercase tracking-wider">
         <span>Price</span>

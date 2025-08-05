@@ -1,5 +1,6 @@
 // OrderBookPage.jsx
 import OrderGrid from "../components/orderbook/OrderBookContainer.jsx";
+import OrderBookTabs from '../components/orderbook/OrderBookTabs';
 
 const OrderBookPage = () => {
   return (
@@ -49,7 +50,7 @@ const OrderBookPage = () => {
       {/* Order Book Section */}
       <main className="relative -mt-4 z-20">
         <div className="py-8">
-          <OrderGrid />
+          <OrderBookTabs />
         </div>
       </main>
     </div>

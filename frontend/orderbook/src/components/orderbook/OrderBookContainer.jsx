@@ -31,7 +31,7 @@ const OrderBookContainer = () => {
 
   return (
     <div className="max-w-6xl mx-auto p-5 bg-white rounded-xl shadow-lg">
-      <OrderBookHeader 
+      <OrderBookHeader
         onRefresh={refetch}
         loading={loading}
         isConnected={isConnected}
@@ -50,7 +50,7 @@ const OrderBookContainer = () => {
 
       {/* Main Orderbook Grid */}
       <div className="grid  gap-5 min-h-96">
-        <OrderBookGrid 
+        <OrderBookGrid
           groupedBids={groupedBids}
           groupedAsks={groupedAsks}
           spread={spread}
