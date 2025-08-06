@@ -341,4 +341,38 @@ export const getCurrentUser = () => {
   return user ? JSON.parse(user) : null;
 };
 
+// Get all transactions
+export const getTransactions = async () => {
+  try {
+    const response = await api.get("/transactions");
+    
+    if (response.data && response.data.success && Array.isArray(response.data.transactions)) {
+      return response.data.transactions;
+    } else {
+      console.warn('Unexpected response format:', response.data);
+      return [];
+    }
+  } catch (error) {
+    console.error("Error fetching transactions:", error);
+    throw error;
+  }
+};
+
+// Get user's transaction history
+export const getUserTransactions = async () => {
+  try {
+    const response = await api.get("/user/transactions");
+    
+    if (response.data && response.data.success && Array.isArray(response.data.transactions)) {
+      return response.data.transactions;
+    } else {
+      console.warn('Unexpected response format:', response.data);
+      return [];
+    }
+  } catch (error) {
+    console.error("Error fetching user transactions:", error);
+    throw error;
+  }
+};
+
 export default api;

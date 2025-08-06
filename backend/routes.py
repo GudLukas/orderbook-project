@@ -6,17 +6,47 @@ import bcrypt
 import os
 from flask_jwt_extended import jwt_required, get_jwt_identity, create_access_token
 from datetime import datetime, timedelta
+from decimal import Decimal, ROUND_DOWN
+
+# Import helper functions
+from helpers import (
+    get_base_asset,
+    get_user_id_int,
+    get_user_balance,
+    update_balance,
+    reserve_balance_for_order,
+    release_balance_for_order,
+    process_trade_settlement,
+    match_orders,
+)
 
 bp = Blueprint("bp", __name__)
 
 
 # get all orders
 @bp.route("/orders", methods=["GET"])
+@jwt_required()
 def get_orders():
     try:
+        current_user_id = get_user_id_int()
+
         with get_db_connection() as db:
             cursor = db.cursor(dictionary=True)
-            cursor.execute("SELECT * FROM orders")
+            cursor.execute(
+                """
+                SELECT id, user_id, symbol, side, price, quantity, status, 
+                       filled_quantity, created_at, updated_at,
+                       CASE WHEN user_id = %s THEN true ELSE false END as is_own_order
+                FROM orders 
+                WHERE status IN ('PENDING', 'PARTIAL')
+                ORDER BY 
+                    symbol ASC,
+                    CASE WHEN side = 'BUY' THEN price END DESC,
+                    CASE WHEN side = 'SELL' THEN price END ASC,
+                    created_at ASC
+            """,
+                (current_user_id,),
+            )
             orders = cursor.fetchall()
             cursor.close()
 
@@ -32,19 +62,20 @@ def get_orders():
 @jwt_required()
 def get_user_orders():
     try:
-        user_id = get_jwt_identity()
+        user_id = get_user_id_int()
 
         with get_db_connection() as db:
             cursor = db.cursor(dictionary=True)
-            sql = """
+            cursor.execute(
+                """
                 SELECT id, symbol, side, price, quantity, status, 
-                    filled_quantity, created_at, updated_at
+                       filled_quantity, created_at, updated_at
                 FROM orders 
                 WHERE user_id = %s 
                 ORDER BY created_at DESC
-            """
-            # Convert user_id to int for database query
-            cursor.execute(sql, (int(user_id),))
+            """,
+                (user_id,),
+            )
             orders = cursor.fetchall()
             cursor.close()
 
@@ -60,7 +91,7 @@ def get_user_orders():
 @jwt_required()
 def create_order():
     try:
-        user_id = get_jwt_identity()
+        user_id = get_user_id_int()
 
         # Validate required fields
         required_fields = ["symbol", "side", "quantity"]
@@ -68,19 +99,16 @@ def create_order():
             if field not in request.json:
                 return jsonify({"error": f"Missing required field: {field}"}), 400
 
-        # Get data from request
+        # Get and validate data
         symbol = request.json["symbol"]
-        side = request.json["side"].upper()  # Ensure uppercase (BUY/SELL)
+        side = request.json["side"].upper()
         quantity = float(request.json["quantity"])
-        price = float(request.json.get("price", 0))  # Default to 0 for market orders
-        order_type = request.json.get("order_type", "LIMIT")  # Default to LIMIT
-        status = "PENDING"  # New orders start as PENDING
-        filled_quantity = 0.0  # Initially no quantity is filled
+        price = float(request.json.get("price", 0))
+        order_type = request.json.get("order_type", "LIMIT")
 
-        # Validate numeric values
+        # Validate values
         if quantity <= 0:
             return jsonify({"error": "Quantity must be greater than 0"}), 400
-
         if order_type != "MARKET" and price <= 0:
             return (
                 jsonify(
@@ -88,104 +116,45 @@ def create_order():
                 ),
                 400,
             )
-
-        # Validate side
         if side not in ["BUY", "SELL"]:
             return jsonify({"error": "Side must be either 'BUY' or 'SELL'"}), 400
 
         with get_db_connection() as db:
             cursor = db.cursor(dictionary=True)
 
-            # Balance validation and reservation logic
-            if side == "BUY":
-                # For BUY orders, check USD balance and reserve the total cost
-                total_cost = quantity * price
-                
-                # Get current USD balance
-                cursor.execute(
-                    "SELECT available, reserved FROM balances WHERE user_id = %s AND asset = 'USD'",
-                    (int(user_id),)
+            # Reserve balance for the order
+            try:
+                reserve_balance_for_order(
+                    cursor, user_id, side, symbol, quantity, price
                 )
-                usd_balance = cursor.fetchone()
-                
-                if not usd_balance:
-                    cursor.close()
-                    return jsonify({"error": "USD balance not found. Please contact support."}), 400
-                
-                if float(usd_balance['available']) < total_cost:
-                    cursor.close()
-                    return jsonify({
-                        "error": f"Insufficient USD balance. Required: ${total_cost:.2f}, Available: ${float(usd_balance['available']):.2f}"
-                    }), 400
-                
-                # Reserve the USD amount
-                new_available = float(usd_balance['available']) - total_cost
-                new_reserved = float(usd_balance['reserved']) + total_cost
-                
-                cursor.execute(
-                    """UPDATE balances 
-                       SET available = %s, reserved = %s, updated_at = NOW()
-                       WHERE user_id = %s AND asset = 'USD'""",
-                    (new_available, new_reserved, int(user_id))
-                )
-                
-            elif side == "SELL":
-                # For SELL orders, check asset balance and reserve the quantity
-                # Extract base asset from symbol (e.g., BTC from BTCUSD)
-                base_asset = symbol.replace('USD', '').replace('USDT', '')
-                
-                # Get current asset balance
-                cursor.execute(
-                    "SELECT available, reserved FROM balances WHERE user_id = %s AND asset = %s",
-                    (int(user_id), base_asset)
-                )
-                asset_balance = cursor.fetchone()
-                
-                if not asset_balance:
-                    cursor.close()
-                    return jsonify({"error": f"{base_asset} balance not found. Please contact support."}), 400
-                
-                if float(asset_balance['available']) < quantity:
-                    cursor.close()
-                    return jsonify({
-                        "error": f"Insufficient {base_asset} balance. Required: {quantity}, Available: {float(asset_balance['available'])}"
-                    }), 400
-                
-                # Reserve the asset quantity
-                new_available = float(asset_balance['available']) - quantity
-                new_reserved = float(asset_balance['reserved']) + quantity
-                
-                cursor.execute(
-                    """UPDATE balances 
-                       SET available = %s, reserved = %s, updated_at = NOW()
-                       WHERE user_id = %s AND asset = %s""",
-                    (new_available, new_reserved, int(user_id), base_asset)
-                )
+            except ValueError as e:
+                cursor.close()
+                return jsonify({"error": str(e)}), 400
 
-            # Insert order with all required fields according to schema
-            sql = """
+            # Insert order
+            cursor.execute(
+                """
                 INSERT INTO orders (
                     user_id, symbol, side, price, quantity, 
                     status, filled_quantity, created_at, updated_at
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
-            """
-
-            # Convert user_id to int for database insertion
-            cursor.execute(
-                sql,
-                (
-                    int(user_id),  # user_id (FK to users table) - convert to int
-                    symbol,  # symbol (VARCHAR(10))
-                    side,  # side (ENUM 'BUY', 'SELL')
-                    price,  # price (DECIMAL(10,2))
-                    quantity,  # quantity (DECIMAL(10,8))
-                    status,  # status (ENUM)
-                    filled_quantity,  # filled_quantity (DECIMAL(10,8))
-                ),
+                ) VALUES (%s, %s, %s, %s, %s, 'PENDING', 0.0, NOW(), NOW())
+            """,
+                (user_id, symbol, side, price, quantity),
             )
 
             db.commit()
             order_id = cursor.lastrowid
+
+            # Attempt to match the new order
+            try:
+                match_orders(cursor, order_id, db)
+                db.commit()
+                logging.info(f"Order matching completed for order {order_id}")
+            except Exception as match_error:
+                logging.error(f"Error during order matching: {match_error}")
+                db.rollback()
+                db.commit()
+
             cursor.close()
 
             return (
@@ -195,13 +164,13 @@ def create_order():
                         "message": "Order created successfully",
                         "order": {
                             "id": order_id,
-                            "user_id": int(user_id),  # Convert back to int for response
+                            "user_id": user_id,
                             "symbol": symbol,
                             "side": side,
                             "price": price,
                             "quantity": quantity,
-                            "status": status,
-                            "filled_quantity": filled_quantity,
+                            "status": "PENDING",
+                            "filled_quantity": 0.0,
                         },
                     }
                 ),
@@ -213,9 +182,6 @@ def create_order():
     except mysql.connector.Error as err:
         logging.error(f"Error creating order: {err}")
         return jsonify({"error": "Database error"}), 500
-    except KeyError as e:
-        logging.error(f"Missing field: {e}")
-        return jsonify({"error": f"Missing required field: {e}"}), 400
     except Exception as e:
         logging.error(f"Unexpected error: {e}")
         return jsonify({"error": "Internal server error"}), 500
@@ -226,95 +192,72 @@ def create_order():
 @jwt_required()
 def delete_order(order_id):
     try:
-        user_id = get_jwt_identity()
+        user_id = get_user_id_int()
 
         with get_db_connection() as db:
             cursor = db.cursor(dictionary=True)
 
-            # First check if the order exists and belongs to the user
-            check_sql = "SELECT id, user_id, status, symbol, side, quantity, price FROM orders WHERE id = %s"
-            cursor.execute(check_sql, (order_id,))
+            # Get order details
+            cursor.execute(
+                "SELECT id, user_id, status, symbol, side, quantity, price, filled_quantity FROM orders WHERE id = %s",
+                (order_id,),
+            )
             order = cursor.fetchone()
 
             if not order:
                 cursor.close()
                 return jsonify({"error": "Order not found"}), 404
 
-            # Check if the order belongs to the current user
-            if int(order["user_id"]) != int(user_id):
+            if order["user_id"] != user_id:
                 cursor.close()
                 return jsonify({"error": "You can only delete your own orders"}), 403
 
-            # Check if order can be cancelled (only PENDING orders can be cancelled)
-            if order["status"] != "PENDING":
+            if order["status"] not in ["PENDING", "PARTIAL"]:
                 cursor.close()
                 return (
                     jsonify(
                         {
-                            "error": f"Cannot delete order with status '{order['status']}'. Only PENDING orders can be deleted."
+                            "error": f"Cannot delete order with status '{order['status']}'. Only PENDING and PARTIAL orders can be cancelled."
                         }
                     ),
                     400,
                 )
 
-            # Release reserved balances before deleting order
-            if order["side"] == "BUY":
-                # Release reserved USD
-                total_cost = float(order["quantity"]) * float(order["price"])
-                
-                cursor.execute(
-                    "SELECT available, reserved FROM balances WHERE user_id = %s AND asset = 'USD'",
-                    (int(user_id),)
-                )
-                usd_balance = cursor.fetchone()
-                
-                if usd_balance:
-                    new_available = float(usd_balance['available']) + total_cost
-                    new_reserved = max(0, float(usd_balance['reserved']) - total_cost)
-                    
-                    cursor.execute(
-                        """UPDATE balances 
-                           SET available = %s, reserved = %s, updated_at = NOW()
-                           WHERE user_id = %s AND asset = 'USD'""",
-                        (new_available, new_reserved, int(user_id))
-                    )
-                    
-            elif order["side"] == "SELL":
-                # Release reserved asset
-                base_asset = order["symbol"].replace('USD', '').replace('USDT', '')
-                quantity = float(order["quantity"])
-                
-                cursor.execute(
-                    "SELECT available, reserved FROM balances WHERE user_id = %s AND asset = %s",
-                    (int(user_id), base_asset)
-                )
-                asset_balance = cursor.fetchone()
-                
-                if asset_balance:
-                    new_available = float(asset_balance['available']) + quantity
-                    new_reserved = max(0, float(asset_balance['reserved']) - quantity)
-                    
-                    cursor.execute(
-                        """UPDATE balances 
-                           SET available = %s, reserved = %s, updated_at = NOW()
-                           WHERE user_id = %s AND asset = %s""",
-                        (new_available, new_reserved, int(user_id), base_asset)
-                    )
+            # Calculate remaining unfilled quantity and release reserved balances
+            filled_quantity = float(order.get("filled_quantity", 0))
+            remaining_quantity = float(order["quantity"]) - filled_quantity
 
-            # Delete the order
-            delete_sql = "DELETE FROM orders WHERE id = %s AND user_id = %s"
-            cursor.execute(delete_sql, (order_id, int(user_id)))
+            if remaining_quantity > 0:
+                try:
+                    release_balance_for_order(
+                        cursor,
+                        user_id,
+                        order["side"],
+                        order["symbol"],
+                        remaining_quantity,
+                        float(order["price"]),
+                    )
+                except ValueError as e:
+                    cursor.close()
+                    return jsonify({"error": str(e)}), 500
+
+            # Mark order as CANCELLED
+            cursor.execute(
+                "UPDATE orders SET status = 'CANCELLED', updated_at = NOW() WHERE id = %s AND user_id = %s",
+                (order_id, user_id),
+            )
             db.commit()
+            cursor.close()
 
-            if cursor.rowcount > 0:
-                cursor.close()
-                return (
-                    jsonify({"success": True, "message": "Order cancelled and balances released successfully"}),
-                    200,
-                )
-            else:
-                cursor.close()
-                return jsonify({"error": "Failed to delete order"}), 500
+            return (
+                jsonify(
+                    {
+                        "success": True,
+                        "message": "Order cancelled and balances released successfully",
+                    }
+                ),
+                200,
+            )
 
     except mysql.connector.Error as err:
         logging.error(f"Error deleting order: {err}")
@@ -376,7 +319,7 @@ def update_order(order_id):
             cursor = db.cursor(dictionary=True)
 
             # First check if the order exists and belongs to the user
-            check_sql = "SELECT id, user_id, status, symbol, side, price, quantity FROM orders WHERE id = %s"
+            check_sql = "SELECT id, user_id, status, symbol, side, price, quantity, filled_quantity FROM orders WHERE id = %s"
             cursor.execute(check_sql, (order_id,))
             order = cursor.fetchone()
 
@@ -389,125 +332,174 @@ def update_order(order_id):
                 cursor.close()
                 return jsonify({"error": "You can only update your own orders"}), 403
 
-            # Check if order can be updated (only PENDING orders can be updated)
-            if order["status"] != "PENDING":
+            # Check if order can be updated (only PENDING and PARTIAL orders can be updated)
+            if order["status"] not in ["PENDING", "PARTIAL"]:
                 cursor.close()
                 return (
                     jsonify(
                         {
-                            "error": f"Cannot update order with status '{order['status']}'. Only PENDING orders can be updated."
+                            "error": f"Cannot update order with status '{order['status']}'. Only PENDING and PARTIAL orders can be updated."
                         }
                     ),
                     400,
                 )
 
-            # Release old reservations
+            # Get filled quantity and calculate remaining
+            filled_quantity = float(order.get("filled_quantity", 0))
+            remaining_quantity = float(order["quantity"]) - filled_quantity
+
+            # For partial orders, new quantity must be at least filled_quantity
+            if order["status"] == "PARTIAL" and new_quantity < filled_quantity:
+                cursor.close()
+                return (
+                    jsonify(
+                        {
+                            "error": f"Cannot reduce quantity below filled amount. Already filled: {filled_quantity}, Minimum new quantity: {filled_quantity}"
+                        }
+                    ),
+                    400,
+                )
+
+            # Release old reservations (only for unfilled portion)
             old_side = order["side"]
             old_quantity = float(order["quantity"])
             old_price = float(order["price"])
             old_symbol = order["symbol"]
+            old_unfilled_quantity = old_quantity - filled_quantity
 
             if old_side == "BUY":
-                # Release old USD reservation
-                old_total_cost = old_quantity * old_price
-                
+                # Release old USD reservation for unfilled portion
+                old_unfilled_cost = old_unfilled_quantity * old_price
+
                 cursor.execute(
                     "SELECT available, reserved FROM balances WHERE user_id = %s AND asset = 'USD'",
-                    (int(user_id),)
+                    (int(user_id),),
                 )
                 usd_balance = cursor.fetchone()
-                
+
                 if usd_balance:
-                    new_available = float(usd_balance['available']) + old_total_cost
-                    new_reserved = max(0, float(usd_balance['reserved']) - old_total_cost)
-                    
+                    new_available = float(usd_balance["available"]) + old_unfilled_cost
+                    new_reserved = max(
+                        0, float(usd_balance["reserved"]) - old_unfilled_cost
+                    )
+
                     cursor.execute(
                         """UPDATE balances 
                            SET available = %s, reserved = %s, updated_at = NOW()
                            WHERE user_id = %s AND asset = 'USD'""",
-                        (new_available, new_reserved, int(user_id))
+                        (new_available, new_reserved, int(user_id)),
                     )
-                    
+
             elif old_side == "SELL":
-                # Release old asset reservation
-                old_base_asset = old_symbol.replace('USD', '').replace('USDT', '')
-                
+                # Release old asset reservation for unfilled portion
+                old_base_asset = old_symbol.replace("USD", "").replace("USDT", "")
+
                 cursor.execute(
                     "SELECT available, reserved FROM balances WHERE user_id = %s AND asset = %s",
-                    (int(user_id), old_base_asset)
+                    (int(user_id), old_base_asset),
                 )
                 asset_balance = cursor.fetchone()
-                
+
                 if asset_balance:
-                    new_available = float(asset_balance['available']) + old_quantity
-                    new_reserved = max(0, float(asset_balance['reserved']) - old_quantity)
-                    
+                    new_available = (
+                        float(asset_balance["available"]) + old_unfilled_quantity
+                    )
+                    new_reserved = max(
+                        0, float(asset_balance["reserved"]) - old_unfilled_quantity
+                    )
+
                     cursor.execute(
                         """UPDATE balances 
                            SET available = %s, reserved = %s, updated_at = NOW()
                            WHERE user_id = %s AND asset = %s""",
-                        (new_available, new_reserved, int(user_id), old_base_asset)
+                        (new_available, new_reserved, int(user_id), old_base_asset),
                     )
 
-            # Apply new reservations
+            # Apply new reservations (only for new unfilled portion)
+            new_unfilled_quantity = new_quantity - filled_quantity
+
             if new_side == "BUY":
-                # Reserve new USD amount
-                new_total_cost = new_quantity * new_price
-                
+                # Reserve new USD amount for unfilled portion
+                new_unfilled_cost = new_unfilled_quantity * new_price
+
                 cursor.execute(
                     "SELECT available, reserved FROM balances WHERE user_id = %s AND asset = 'USD'",
-                    (int(user_id),)
+                    (int(user_id),),
                 )
                 usd_balance = cursor.fetchone()
-                
+
                 if not usd_balance:
                     cursor.close()
-                    return jsonify({"error": "USD balance not found. Please contact support."}), 400
-                
-                if float(usd_balance['available']) < new_total_cost:
+                    return (
+                        jsonify(
+                            {"error": "USD balance not found. Please contact support."}
+                        ),
+                        400,
+                    )
+
+                if float(usd_balance["available"]) < new_unfilled_cost:
                     cursor.close()
-                    return jsonify({
-                        "error": f"Insufficient USD balance for updated order. Required: ${new_total_cost:.2f}, Available: ${float(usd_balance['available']):.2f}"
-                    }), 400
-                
-                new_available = float(usd_balance['available']) - new_total_cost
-                new_reserved = float(usd_balance['reserved']) + new_total_cost
-                
+                    return (
+                        jsonify(
+                            {
+                                "error": f"Insufficient USD balance for updated order. Required for unfilled portion: ${new_unfilled_cost:.2f}, Available: ${float(usd_balance['available']):.2f}"
+                            }
+                        ),
+                        400,
+                    )
+
+                new_available = float(usd_balance["available"]) - new_unfilled_cost
+                new_reserved = float(usd_balance["reserved"]) + new_unfilled_cost
+
                 cursor.execute(
                     """UPDATE balances 
                        SET available = %s, reserved = %s, updated_at = NOW()
                        WHERE user_id = %s AND asset = 'USD'""",
-                    (new_available, new_reserved, int(user_id))
+                    (new_available, new_reserved, int(user_id)),
                 )
-                
+
             elif new_side == "SELL":
-                # Reserve new asset amount
-                new_base_asset = new_symbol.replace('USD', '').replace('USDT', '')
-                
+                # Reserve new asset amount for unfilled portion
+                new_base_asset = new_symbol.replace("USD", "").replace("USDT", "")
+
                 cursor.execute(
                     "SELECT available, reserved FROM balances WHERE user_id = %s AND asset = %s",
-                    (int(user_id), new_base_asset)
+                    (int(user_id), new_base_asset),
                 )
                 asset_balance = cursor.fetchone()
-                
+
                 if not asset_balance:
                     cursor.close()
-                    return jsonify({"error": f"{new_base_asset} balance not found. Please contact support."}), 400
-                
-                if float(asset_balance['available']) < new_quantity:
+                    return (
+                        jsonify(
+                            {
+                                "error": f"{new_base_asset} balance not found. Please contact support."
+                            }
+                        ),
+                        400,
+                    )
+
+                if float(asset_balance["available"]) < new_unfilled_quantity:
                     cursor.close()
-                    return jsonify({
-                        "error": f"Insufficient {new_base_asset} balance for updated order. Required: {new_quantity}, Available: {float(asset_balance['available'])}"
-                    }), 400
-                
-                new_available = float(asset_balance['available']) - new_quantity
-                new_reserved = float(asset_balance['reserved']) + new_quantity
-                
+                    return (
+                        jsonify(
+                            {
+                                "error": f"Insufficient {new_base_asset} balance for updated order. Required for unfilled portion: {new_unfilled_quantity}, Available: {float(asset_balance['available'])}"
+                            }
+                        ),
+                        400,
+                    )
+
+                new_available = (
+                    float(asset_balance["available"]) - new_unfilled_quantity
+                )
+                new_reserved = float(asset_balance["reserved"]) + new_unfilled_quantity
+
                 cursor.execute(
                     """UPDATE balances 
                        SET available = %s, reserved = %s, updated_at = NOW()
                        WHERE user_id = %s AND asset = %s""",
-                    (new_available, new_reserved, int(user_id), new_base_asset)
+                    (new_available, new_reserved, int(user_id), new_base_asset),
                 )
 
             # Update the order
@@ -525,7 +517,12 @@ def update_order(order_id):
             if cursor.rowcount > 0:
                 cursor.close()
                 return (
-                    jsonify({"success": True, "message": "Order updated successfully with balance adjustments"}),
+                    jsonify(
+                        {
+                            "success": True,
+                            "message": "Order updated successfully with balance adjustments",
+                        }
+                    ),
                     200,
                 )
             else:
@@ -572,6 +569,11 @@ def login():
                     "id": user["id"],
                     "email": user["email"],
                     "username": user["username"],
+                    "created_at": (
+                        user["created_at"].isoformat()
+                        if user.get("created_at")
+                        else None
+                    ),
                 },
             }
 
@@ -598,34 +600,37 @@ def register():
 
         with get_db_connection() as db:
             cursor = db.cursor()
-            
+
             # Insert user
             cursor.execute(
                 "INSERT INTO users (username, email, password) VALUES (%s, %s, %s)",
                 (username, email, hashed_password),
             )
             user_id = cursor.lastrowid
-            
+
             # Create demo balances for new user
             demo_balances = [
-                ('USD', 10000.00, 0.00),    # $10,000 USD
-                ('BTC', 0.5, 0.00),         # 0.5 BTC
-                ('ETH', 2.0, 0.00),         # 2.0 ETH
-                ('ADA', 1000.0, 0.00),      # 1,000 ADA
-                ('SOL', 50.0, 0.00),        # 50 SOL
+                ("USD", 10000.00, 0.00),  # $10,000 USD
+                ("BTC", 0.5, 0.00),  # 0.5 BTC
+                ("ETH", 2.0, 0.00),  # 2.0 ETH
+                ("ADA", 1000.0, 0.00),  # 1,000 ADA
+                ("SOL", 50.0, 0.00),  # 50 SOL
             ]
-            
+
             for asset, available, reserved in demo_balances:
                 cursor.execute(
                     """INSERT INTO balances (user_id, asset, available, reserved, updated_at) 
                        VALUES (%s, %s, %s, %s, NOW())""",
-                    (user_id, asset, available, reserved)
+                    (user_id, asset, available, reserved),
                 )
-            
+
             db.commit()
             cursor.close()
 
-            return jsonify({"message": "User registered successfully with demo balances"}), 201
+            return (
+                jsonify({"message": "User registered successfully with demo balances"}),
+                201,
+            )
 
     except mysql.connector.Error as err:
         logging.error(f"Error registering user: {err}")
@@ -633,39 +638,42 @@ def register():
 
 
 # Get user balances
-@bp.route('/user/balances', methods=['GET'])
+@bp.route("/user/balances", methods=["GET"])
 @jwt_required()
 def get_user_balances():
     try:
-        user_id = get_jwt_identity()
+        user_id = get_user_id_int()
 
         with get_db_connection() as db:
             cursor = db.cursor(dictionary=True)
-            sql = """
+            cursor.execute(
+                """
                 SELECT asset, available, reserved, updated_at
                 FROM balances 
                 WHERE user_id = %s 
                 ORDER BY asset
-            """
-            cursor.execute(sql, (int(user_id),))
+            """,
+                (user_id,),
+            )
             balances = cursor.fetchall()
             cursor.close()
 
             # Convert to a more convenient format for frontend
             balance_dict = {}
             for balance in balances:
-                balance_dict[balance['asset']] = {
-                    'available': float(balance['available']),
-                    'reserved': float(balance['reserved']),
-                    'total': float(balance['available']) + float(balance['reserved']),
-                    'updated_at': balance['updated_at'].isoformat() if balance['updated_at'] else None
+                balance_dict[balance["asset"]] = {
+                    "available": float(balance["available"]),
+                    "reserved": float(balance["reserved"]),
+                    "total": float(balance["available"]) + float(balance["reserved"]),
+                    "updated_at": (
+                        balance["updated_at"].isoformat()
+                        if balance["updated_at"]
+                        else None
+                    ),
                 }
 
-            return jsonify({
-                "success": True,
-                "balances": balance_dict
-            })
-        
+            return jsonify({"success": True, "balances": balance_dict})
+
     except mysql.connector.Error as err:
         logging.error(f"Error fetching user balances: {err}")
         return jsonify({"error": "Database error"}), 500
@@ -674,57 +682,126 @@ def get_user_balances():
         return jsonify({"error": "Internal server error"}), 500
 
 
-# Update user balance (for admin or internal use)
-@bp.route('/user/balances/<asset>', methods=['PUT'])
+# Get transaction history
+@bp.route("/transactions", methods=["GET"])
+@jwt_required()
+def get_transactions():
+    try:
+        with get_db_connection() as db:
+            cursor = db.cursor(dictionary=True)
+            cursor.execute(
+                """
+                SELECT t.*, 
+                       bo.user_id as buyer_id,
+                       so.user_id as seller_id
+                FROM transactions t
+                LEFT JOIN orders bo ON t.buy_order_id = bo.id
+                LEFT JOIN orders so ON t.sell_order_id = so.id
+                ORDER BY t.executed_at DESC
+                LIMIT 100
+            """
+            )
+            transactions = cursor.fetchall()
+            cursor.close()
+
+            return jsonify({"success": True, "transactions": transactions})
+
+    except mysql.connector.Error as err:
+        logging.error(f"Error fetching transactions: {err}")
+        return jsonify({"error": "Database error"}), 500
+
+
+# Get user's transaction history
+@bp.route("/user/transactions", methods=["GET"])
+@jwt_required()
+def get_user_transactions():
+    try:
+        user_id = get_user_id_int()
+
+        with get_db_connection() as db:
+            cursor = db.cursor(dictionary=True)
+            cursor.execute(
+                """
+                SELECT t.*, 
+                       bo.user_id as buyer_id,
+                       so.user_id as seller_id,
+                       CASE 
+                           WHEN bo.user_id = %s THEN 'BUY'
+                           WHEN so.user_id = %s THEN 'SELL'
+                           ELSE 'UNKNOWN'
+                       END as user_side
+                FROM transactions t
+                LEFT JOIN orders bo ON t.buy_order_id = bo.id
+                LEFT JOIN orders so ON t.sell_order_id = so.id
+                WHERE bo.user_id = %s OR so.user_id = %s
+                ORDER BY t.executed_at DESC
+                LIMIT 100
+            """,
+                (user_id, user_id, user_id, user_id),
+            )
+            transactions = cursor.fetchall()
+            cursor.close()
+
+            return jsonify({"success": True, "transactions": transactions})
+
+    except mysql.connector.Error as err:
+        logging.error(f"Error fetching user transactions: {err}")
+        return jsonify({"error": "Database error"}), 500
+
+
+# Update user balance (can be used for deposits or withdrawals in the future)
+@bp.route("/user/balances/<asset>", methods=["PUT"])
 @jwt_required()
 def update_user_balance(asset):
     try:
         user_id = get_jwt_identity()
-        
+
         # Validate required fields
-        if 'available' not in request.json:
+        if "available" not in request.json:
             return jsonify({"error": "Missing required field: available"}), 400
-        
-        available = float(request.json['available'])
-        reserved = float(request.json.get('reserved', 0))
-        
+
+        available = float(request.json["available"])
+        reserved = float(request.json.get("reserved", 0))
+
         if available < 0 or reserved < 0:
             return jsonify({"error": "Balance amounts cannot be negative"}), 400
 
         with get_db_connection() as db:
             cursor = db.cursor()
-            
+
             # Check if balance record exists
             cursor.execute(
                 "SELECT id FROM balances WHERE user_id = %s AND asset = %s",
-                (int(user_id), asset.upper())
+                (int(user_id), asset.upper()),
             )
             existing = cursor.fetchone()
-            
+
             if existing:
                 # Update existing balance
                 cursor.execute(
                     """UPDATE balances 
                        SET available = %s, reserved = %s, updated_at = NOW()
                        WHERE user_id = %s AND asset = %s""",
-                    (available, reserved, int(user_id), asset.upper())
+                    (available, reserved, int(user_id), asset.upper()),
                 )
             else:
                 # Create new balance record
                 cursor.execute(
                     """INSERT INTO balances (user_id, asset, available, reserved, updated_at)
                        VALUES (%s, %s, %s, %s, NOW())""",
-                    (int(user_id), asset.upper(), available, reserved)
+                    (int(user_id), asset.upper(), available, reserved),
                 )
-            
+
             db.commit()
             cursor.close()
-            
-            return jsonify({
-                "success": True,
-                "message": f"Balance updated for {asset.upper()}"
-            }), 200
-            
+
+            return (
+                jsonify(
+                    {"success": True, "message": f"Balance updated for {asset.upper()}"}
+                ),
+                200,
+            )
+
     except ValueError as e:
         return jsonify({"error": "Invalid numeric value provided"}), 400
     except mysql.connector.Error as err:

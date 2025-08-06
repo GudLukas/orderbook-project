@@ -3,6 +3,7 @@ import { useOrderBookProfile } from '../../hooks/useOrderBookProfile';
 import UserInfoCard from './profile/UserInfoCard';
 import AccountBalancesCard from './profile/AccountBalancesCard';
 import OrdersManagementCard from './profile/OrdersManagementCard';
+import UserTransactionHistory from './profile/UserTransactionHistory';
 
 const OrderBookProfile = () => {
     const {
@@ -62,6 +63,8 @@ const OrderBookProfile = () => {
                 getStatusColor={getStatusColor}
                 getSideColor={getSideColor}
             />
+
+            <UserTransactionHistory />
         </div>
     );
 };

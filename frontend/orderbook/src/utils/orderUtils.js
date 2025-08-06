@@ -3,15 +3,33 @@ export const groupOrdersByPrice = (ordersList) => {
   const grouped = {};
   ordersList.forEach(order => {
     const price = parseFloat(order.price).toString();
-    if (!grouped[price]) {
-      grouped[price] = {
-        price: parseFloat(order.price),
-        totalQuantity: 0,
-        orders: []
-      };
+    const filledQuantity = parseFloat(order.filled_quantity || 0);
+    const totalQuantity = parseFloat(order.quantity || 0);
+    const remainingQuantity = totalQuantity - filledQuantity;
+    
+    // Only include orders with remaining quantity
+    if (remainingQuantity > 0) {
+      if (!grouped[price]) {
+        grouped[price] = {
+          price: parseFloat(order.price),
+          totalQuantity: 0,
+          totalRemainingQuantity: 0,
+          orders: []
+        };
+      }
+      
+      // Add the remaining quantity to the total
+      grouped[price].totalQuantity += remainingQuantity;
+      grouped[price].totalRemainingQuantity += remainingQuantity;
+      
+      // Add order with calculated remaining quantity
+      grouped[price].orders.push({
+        ...order,
+        remainingQuantity: remainingQuantity,
+        filledQuantity: filledQuantity,
+        fillPercentage: totalQuantity > 0 ? (filledQuantity / totalQuantity) * 100 : 0
+      });
     }
-    grouped[price].totalQuantity += parseFloat(order.quantity);
-    grouped[price].orders.push(order);
   });
   return Object.values(grouped);
 };

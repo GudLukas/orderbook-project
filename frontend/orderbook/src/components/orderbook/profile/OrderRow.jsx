@@ -13,6 +13,11 @@ const OrderRow = ({
     getStatusColor,
     getSideColor 
 }) => {
+    const filledQuantity = parseFloat(order.filled_quantity || 0);
+    const totalQuantity = parseFloat(order.quantity || 0);
+    const remainingQuantity = totalQuantity - filledQuantity;
+    const fillPercentage = totalQuantity > 0 ? (filledQuantity / totalQuantity) * 100 : 0;
+
     return (
         <tr className="border-b border-gray-100 hover:bg-gray-50">
             <td className="p-3 text-sm font-mono">{order.id}</td>
@@ -24,15 +29,35 @@ const OrderRow = ({
             </td>
             <td className="p-3 text-sm">
                 {editingOrder === order.id ? (
-                    <input
-                        type="number"
-                        value={editForm.quantity}
-                        onChange={(e) => onFormChange('quantity', e.target.value)}
-                        className="w-20 px-2 py-1 border rounded text-sm"
-                        step="0.00000001"
-                    />
+                    <div className="space-y-1">
+                        <input
+                            type="number"
+                            value={editForm.quantity}
+                            onChange={(e) => onFormChange('quantity', e.target.value)}
+                            className="w-20 px-2 py-1 border rounded text-sm"
+                            step="0.00000001"
+                            min={filledQuantity} // Can't go below filled amount
+                        />
+                        {filledQuantity > 0 && (
+                            <div className="text-xs text-gray-500">
+                                Min: {formatQuantity(filledQuantity)}
+                            </div>
+                        )}
+                    </div>
                 ) : (
-                    formatQuantity(order.quantity)
+                    <div>
+                        <div className="font-medium">{formatQuantity(order.quantity)}</div>
+                        {filledQuantity > 0 && (
+                            <div className="text-xs text-gray-500">
+                                Filled: {formatQuantity(filledQuantity)} ({fillPercentage.toFixed(1)}%)
+                            </div>
+                        )}
+                        {remainingQuantity > 0 && order.status === 'PARTIAL' && (
+                            <div className="text-xs text-blue-600">
+                                Remaining: {formatQuantity(remainingQuantity)}
+                            </div>
+                        )}
+                    </div>
                 )}
             </td>
             <td className="p-3 text-sm">
@@ -49,7 +74,12 @@ const OrderRow = ({
                 )}
             </td>
             <td className="p-3 text-sm font-medium">
-                ${(parseFloat(order.quantity || 0) * parseFloat(order.price || 0)).toFixed(2)}
+                <div>${(parseFloat(order.quantity || 0) * parseFloat(order.price || 0)).toFixed(2)}</div>
+                {filledQuantity > 0 && (
+                    <div className="text-xs text-gray-500">
+                        Filled Value: ${(filledQuantity * parseFloat(order.price || 0)).toFixed(2)}
+                    </div>
+                )}
             </td>
             <td className="p-3">
                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(order.status)}`}>
@@ -75,17 +105,19 @@ const OrderRow = ({
                             Cancel
                         </button>
                     </div>
-                ) : order.status === 'PENDING' ? (
+                ) : (order.status === 'PENDING' || order.status === 'PARTIAL') ? (
                     <div className="flex gap-1">
                         <button
                             onClick={() => onEditOrder(order)}
                             className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600"
+                            title={order.status === 'PARTIAL' ? 'Edit remaining quantity' : 'Edit order'}
                         >
                             Edit
                         </button>
                         <button
                             onClick={() => onCancelOrder(order.id)}
                             className="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600"
+                            title={order.status === 'PARTIAL' ? 'Cancel remaining quantity' : 'Cancel order'}
                         >
                             Cancel
                         </button>

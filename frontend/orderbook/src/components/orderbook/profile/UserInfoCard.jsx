@@ -28,7 +28,12 @@ const UserInfoCard = ({ user, orders }) => {
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-gray-600">Member Since:</span>
-                                <span className="font-medium">Not Implemented</span>
+                                <span className="font-medium">
+                                    {user?.created_at ? 
+                                        new Date(user.created_at).toLocaleDateString() : 
+                                        'Date not available'
+                                    }
+                                </span>
                             </div>
                         </div>
                     </div>

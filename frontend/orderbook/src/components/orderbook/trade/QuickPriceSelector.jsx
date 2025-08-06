@@ -2,9 +2,9 @@ import React from 'react';
 
 const QuickPriceSelector = ({ onPriceSelect }) => {
     const quickPrices = [
+        { label: '$10,000', value: '10000' },
+        { label: '$25,000', value: '25000' },
         { label: '$50,000', value: '50000' },
-        { label: '$60,000', value: '60000' },
-        { label: '$70,000', value: '70000' },
         { label: '$100,000', value: '100000' }
     ];
 

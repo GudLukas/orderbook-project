@@ -56,16 +56,16 @@ const OrdersManagementCard = ({
                         <p className="text-sm">Your placed orders will appear here</p>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
+                    <div className="max-h-96 overflow-y-auto overflow-x-auto">
                         <table className="w-full border-collapse">
-                            <thead>
+                            <thead className="sticky top-0 bg-white z-10">
                                 <tr className="border-b border-gray-200">
                                     <th className="text-left p-3 font-medium text-gray-600">ID</th>
                                     <th className="text-left p-3 font-medium text-gray-600">Symbol</th>
                                     <th className="text-left p-3 font-medium text-gray-600">Side</th>
-                                    <th className="text-left p-3 font-medium text-gray-600">Quantity</th>
+                                    <th className="text-left p-3 font-medium text-gray-600">Quantity / Fill</th>
                                     <th className="text-left p-3 font-medium text-gray-600">Price</th>
-                                    <th className="text-left p-3 font-medium text-gray-600">Total</th>
+                                    <th className="text-left p-3 font-medium text-gray-600">Total Value</th>
                                     <th className="text-left p-3 font-medium text-gray-600">Status</th>
                                     <th className="text-left p-3 font-medium text-gray-600">Date</th>
                                     <th className="text-left p-3 font-medium text-gray-600">Actions</th>
