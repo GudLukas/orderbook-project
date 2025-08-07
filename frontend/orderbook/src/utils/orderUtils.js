@@ -31,7 +31,23 @@ export const groupOrdersByPrice = (ordersList) => {
       });
     }
   });
-  return Object.values(grouped);
+  
+  // Convert to array and maintain the original sorting order
+  const result = Object.values(grouped);
+  
+  // Check if this is bids or asks based on the first order
+  if (ordersList.length > 0) {
+    const firstOrderSide = ordersList[0].side;
+    if (firstOrderSide && firstOrderSide.toLowerCase() === 'buy') {
+      // For bids: sort from highest price to lowest (best bids first)
+      return result.sort((a, b) => b.price - a.price);
+    } else {
+      // For asks: sort from lowest price to highest (best asks first)
+      return result.sort((a, b) => a.price - b.price);
+    }
+  }
+  
+  return result;
 };
 
 export const separateOrdersBySide = (orders) => {

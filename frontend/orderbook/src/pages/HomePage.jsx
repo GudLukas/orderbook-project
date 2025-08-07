@@ -1,7 +1,11 @@
 // Create: src/pages/HomePage.jsx
 import { Link } from "react-router-dom";
+import { isAuthenticated, getCurrentUser } from "../services/api";
 
 const HomePage = () => {
+  const userIsAuthenticated = isAuthenticated();
+  const currentUser = getCurrentUser();
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
       {/* Modern Header with Glass Effect */}
@@ -19,8 +23,11 @@ const HomePage = () => {
         <div className="relative z-10 text-center py-16 px-8">
           <div className="max-w-4xl mx-auto">
             {/* Main Title with Gradient Text */}
-            <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-blue-400 via-purple-400 to-emerald-400 bg-clip-text text-transparent">
-              📊 OrderBook
+            <h1 className="text-5xl md:text-7xl font-bold mb-6">
+              <span className="text-5xl md:text-7xl">📊</span>{" "}
+              <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-emerald-400 bg-clip-text text-transparent">
+                OrderBook
+              </span>
             </h1>
             <h2 className="text-2xl md:text-3xl font-semibold text-white mb-4">
               Trading Platform
@@ -68,12 +75,14 @@ const HomePage = () => {
             </div>
 
             <h3 className="text-3xl md:text-4xl font-bold text-white mb-4">
-              Welcome to the Trading Floor
+              {userIsAuthenticated
+                ? `Welcome back, ${currentUser?.username || "Trader"}!`
+                : "Welcome to the Trading Floor"}
             </h3>
             <p className="text-lg text-gray-300 mb-8 max-w-2xl mx-auto">
-              Experience next-generation order book visualization with real-time
-              market depth analysis, advanced charting capabilities, and
-              institutional-grade trading tools.
+              {userIsAuthenticated
+                ? "Your trading dashboard is ready. Access real-time market data, manage your portfolio, and execute trades with professional-grade tools."
+                : "Experience next-generation order book visualization with real-time market depth analysis, advanced charting capabilities, and institutional-grade trading tools."}
             </p>
 
             {/* Action Buttons */}
@@ -82,14 +91,26 @@ const HomePage = () => {
                 to="/orderbook"
                 className="px-8 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold rounded-lg hover:from-blue-600 hover:to-purple-700 transition-all duration-200 shadow-lg"
               >
-                Start Trading
+                {userIsAuthenticated
+                  ? "Go to Trading Dashboard"
+                  : "Start Trading"}
               </Link>
-              <Link
-                to="/login"
-                className="px-8 py-3 bg-white/10 backdrop-blur-sm text-white font-semibold rounded-lg border border-white/20 hover:bg-white/20 transition-all duration-200"
-              >
-                Login
-              </Link>
+              {!userIsAuthenticated && (
+                <>
+                  <Link
+                    to="/login"
+                    className="px-8 py-3 bg-white/10 backdrop-blur-sm text-white font-semibold rounded-lg border border-white/20 hover:bg-white/20 transition-all duration-200"
+                  >
+                    Login
+                  </Link>
+                  <Link
+                    to="/register"
+                    className="px-8 py-3 bg-emerald-500/20 backdrop-blur-sm text-emerald-300 font-semibold rounded-lg border border-emerald-500/30 hover:bg-emerald-500/30 transition-all duration-200"
+                  >
+                    Sign Up
+                  </Link>
+                </>
+              )}
             </div>
 
             {/* Stats Grid */}
