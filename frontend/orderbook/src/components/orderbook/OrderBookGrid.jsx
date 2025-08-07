@@ -6,7 +6,7 @@ const OrderBookGrid = ({ groupedBids, groupedAsks, spread, stats }) => {
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 min-h-96">
       {/* Bids Section (Left) */}
       <div className="order-2 lg:order-1">
-        <OrderSide 
+        <OrderSide
           type="bids"
           title="Bids (Buy Orders)"
           orders={groupedBids}
@@ -19,7 +19,7 @@ const OrderBookGrid = ({ groupedBids, groupedAsks, spread, stats }) => {
 
       {/* Market Spread Section (Center) */}
       <div className="order-1 lg:order-2">
-        <SpreadSection 
+        <SpreadSection
           spread={spread}
           bidCount={stats.bidCount}
           askCount={stats.askCount}
@@ -28,7 +28,7 @@ const OrderBookGrid = ({ groupedBids, groupedAsks, spread, stats }) => {
 
       {/* Asks Section (Right) */}
       <div className="order-3">
-        <OrderSide 
+        <OrderSide
           type="asks"
           title="Asks (Sell Orders)"
           orders={groupedAsks}

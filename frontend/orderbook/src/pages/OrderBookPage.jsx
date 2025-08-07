@@ -1,5 +1,6 @@
 // OrderBookPage.jsx
 import OrderGrid from "../components/orderbook/OrderBookContainer.jsx";
+import OrderBookTabs from '../components/orderbook/OrderBookTabs';
 
 const OrderBookPage = () => {
   return (
@@ -19,8 +20,11 @@ const OrderBookPage = () => {
         <div className="relative z-10 text-center py-12 px-8">
           <div className="max-w-4xl mx-auto">
             {/* Page Title */}
-            <h1 className="text-4xl md:text-6xl font-bold mb-4 bg-gradient-to-r from-blue-400 via-purple-400 to-emerald-400 bg-clip-text text-transparent">
-              📊 Live Trading
+            <h1 className="text-4xl md:text-6xl font-bold mb-4">
+              <span className="text-4xl md:text-6xl">📊</span>{" "}
+              <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-emerald-400 bg-clip-text text-transparent">
+                Live Trading
+              </span>
             </h1>
             <h2 className="text-xl md:text-2xl font-semibold text-white mb-4">
               Real-Time Order Book
@@ -49,7 +53,7 @@ const OrderBookPage = () => {
       {/* Order Book Section */}
       <main className="relative -mt-4 z-20">
         <div className="py-8">
-          <OrderGrid />
+          <OrderBookTabs />
         </div>
       </main>
     </div>

@@ -10,12 +10,6 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-# Debug: Print loaded environment variables
-print(f"DB_USER: '{os.getenv('DB_USER')}'")
-print(f"DB_PASSWORD: '{os.getenv('DB_PASSWORD')}'")
-print(f"DB_HOST: '{os.getenv('DB_HOST')}'")
-print(f"DB_NAME: '{os.getenv('DB_NAME')}'")
-
 pool_config = {
     'user': os.getenv('DB_USER'),
     'password': os.getenv('DB_PASSWORD'),
