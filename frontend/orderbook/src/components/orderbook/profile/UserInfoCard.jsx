@@ -49,7 +49,7 @@ const UserInfoCard = ({ user, orders }) => {
                             <div className="flex justify-between">
                                 <span className="text-gray-600">Active Orders:</span>
                                 <span className="font-medium text-yellow-600">
-                                    {Array.isArray(orders) ? orders.filter(o => o.status === 'PENDING').length : 0}
+                                    {Array.isArray(orders) ? orders.filter(o => o.status === 'PENDING' || o.status === 'PARTIAL').length : 0}
                                 </span>
                             </div>
                             <div className="flex justify-between">
