@@ -196,7 +196,7 @@ def match_orders(cursor, new_order_id, db):
     try:
         # Get the new order details
         cursor.execute(
-            "SELECT * FROM orders WHERE id = %s AND status = 'PENDING'", (new_order_id,)
+            "SELECT * FROM orders WHERE id = %s AND status IN ('PENDING', 'PARTIAL')", (new_order_id,)
         )
         new_order = cursor.fetchone()
 

@@ -515,6 +515,17 @@ def update_order(order_id):
             db.commit()
 
             if cursor.rowcount > 0:
+                # Try to match the updated order with existing orders
+                try:
+                    match_orders(cursor, order_id, db)
+                    db.commit()
+                    logging.info(f"Order matching completed for updated order {order_id}")
+                except Exception as match_error:
+                    logging.error(f"Error during order matching for updated order: {match_error}")
+                    # Don't fail the update if matching fails, just log it
+                    db.rollback()
+                    db.commit()
+                
                 cursor.close()
                 return (
                     jsonify(
